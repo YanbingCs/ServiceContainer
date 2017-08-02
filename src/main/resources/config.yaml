@@ -1,0 +1,139 @@
+image: ubuntu
+image: orchardup/postgresql
+image: a4bc65fd
+build: ./dir
+command: bundle exec thin -p 3000
+links:
+ - db
+ - db:database
+ - redis
+external_links:
+  - redis_1
+  - project_db_1:mysql
+  - project_db_2:sqlserver
+ports:
+ - "3306"
+ - "8080:80"
+ - "127.0.0.1:8090:8001"
+expose:
+  - "3000"
+  - "8000"
+volumes:
+   - /var/lib/mysql:/var/lib/mysql
+   - /configs/mysql:/etc/configs/:ro
+volumes_from:
+ - service_name
+ - container_name
+environment:
+ - RACK_ENV=development
+ - SESSION_SECRET
+env_file: .env
+env_file:
+ - ./common.env
+ - ./apps/web.env
+ - /opt/secrets.env
+# common.yml
+webapp:
+build: ./webapp
+environment:
+ \ - DEBUG=false
+ \ - SEND_EMAILS=false
+# 容器默认连接的网络，是所有Docker安装时都默认安装的docker0网络.
+net: "bridge"
+# 容器定制的网络栈.
+net: "none"
+# 使用另一个容器的网络配置
+net: "container:[name or id]"
+# 在宿主网络栈上添加一个容器，容器中的网络配置会与宿主的一样
+net: "host"
+pid: "host"
+dns: 8.8.8.8
+dns:
+ - 8.8.8.8
+ - 9.9.9.9
+cap_add:
+  - ALL
+cap_drop:
+  - NET_ADMIN
+  - SYS_ADMIN
+dns_search: example.com
+dns_search:
+
+# 这些都是和 docker run 支持的选项类似。
+cpu_shares: 73
+working_dir: /code
+entrypoint: /code/entrypoint.sh
+user: postgresql
+hostname: foo
+domainname: foo.com
+mem_limit: 1000000000
+privileged: true
+restart: always
+stdin_open: true
+tty: true
+version: "2"
+
+services:
+### console
+    console:
+        build:
+            context: ./images/console
+            args:
+                # console 容器 www-data用户密码
+                - USERPASS=root
+                - GIT_NAME=yangnan
+                - GIT_EMAIL=20706149@qq.com
+                - INSTALL_YARN=false
+        volumes_from:
+            - php-fpm
+            - nginx
+            - mysql
+            - redis
+        volumes:
+            - ./ssh:/home/www-data/.ssh
+        links:
+            - redis
+            - mysql
+        tty: true
+
+### php-fpm
+    php-fpm:
+        build: ./images/php-fpm
+        volumes:
+            - ./app/:/var/www/
+
+### nginx
+    nginx:
+        image: nginx
+        ports:
+            - "8081:80"
+        volumes_from:
+            - php-fpm
+        volumes:
+            - ./logs/nginx/:/var/log/nginx/
+            - ./images/nginx/sites:/etc/nginx/conf.d/
+        links:
+            - php-fpm
+
+### mysql
+    mysql:
+        image: mysql
+        ports:
+            - "7706:3306"
+        environment:
+            MYSQL_ROOT_PASSWORD: "123"
+            MYSQL_DATABASE: "test"
+            MYSQL_USER: "root"
+            MYSQL_PASSWORD: "123"
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+
+### redis
+    redis:
+        image: redis
+        ports:
+            - "6379:6379"
+        volumes:
+            - ./data/redis:/data
+
+
